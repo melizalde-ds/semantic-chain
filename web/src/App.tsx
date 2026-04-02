@@ -92,7 +92,7 @@ export default function App() {
   if (!game) return null
 
   return (
-    <div className="min-h-svh bg-gradient-to-b from-background to-muted/30 text-foreground flex flex-col items-center p-6 gap-4 max-w-2xl mx-auto">
+    <div className="min-h-svh bg-linear-to-b from-background to-muted/30 text-foreground flex flex-col items-center p-6 gap-4 max-w-2xl mx-auto">
       <div className="text-center">
         <h1 className="text-2xl font-bold tracking-tight">Semantic Chain</h1>
         <p className="text-sm text-muted-foreground">connect words through meaning</p>
@@ -134,11 +134,10 @@ export default function App() {
       {/* Status — aria-live so screen readers announce changes without focus move */}
       <div role="status" aria-live="polite" aria-atomic="true" className="min-h-[1.25rem]">
         {status.msg && (
-          <p className={`flex items-center gap-1.5 text-sm font-mono ${
-            status.type === "error" ? "text-destructive" :
-            status.type === "success" ? "text-primary" :
-            "text-muted-foreground"
-          }`}>
+          <p className={`flex items-center gap-1.5 text-sm font-mono ${status.type === "error" ? "text-destructive" :
+              status.type === "success" ? "text-primary" :
+                "text-muted-foreground"
+            }`}>
             {status.type === "error" && <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-label="Error:" />}
             {status.type === "success" && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-label="Success:" />}
             {status.msg}
