@@ -26,10 +26,15 @@ export function WordInput({ onSubmit, disabled, loading }: Props) {
                 onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                 placeholder="Type a word..."
                 disabled={disabled || loading}
+                aria-label="Enter your next word"
                 className="font-mono"
             />
-            <Button onClick={handleSubmit} disabled={disabled || loading || !value.trim()}>
-                {loading ? "..." : "Link"}
+            <Button
+                onClick={handleSubmit}
+                disabled={disabled || loading || !value.trim()}
+                aria-busy={loading}
+            >
+                {loading ? "Linking…" : "Link"}
             </Button>
         </div>
     )

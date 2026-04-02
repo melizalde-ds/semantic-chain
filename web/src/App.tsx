@@ -7,6 +7,7 @@ import { ChainDisplay } from "@/components/chain-display"
 import { ProximityBar } from "@/components/proximity-bar"
 import { WordInput } from "@/components/word-input"
 import { useEmbedder } from "@/hooks/use-embedder"
+import { AlertCircle, CheckCircle2, ChevronRight } from "lucide-react"
 import {
   cosineSim, pickPair, newGameState,
   SIMILARITY_THRESHOLD,
@@ -91,17 +92,17 @@ export default function App() {
   if (!game) return null
 
   return (
-    <div className="min-h-svh bg-background text-foreground flex flex-col items-center p-6 gap-4 max-w-2xl mx-auto">
+    <div className="min-h-svh bg-gradient-to-b from-background to-muted/30 text-foreground flex flex-col items-center p-6 gap-4 max-w-2xl mx-auto">
       <div className="text-center">
         <h1 className="text-2xl font-bold tracking-tight">Semantic Chain</h1>
         <p className="text-sm text-muted-foreground">connect words through meaning</p>
       </div>
 
       {/* Challenge */}
-      <div className="flex items-center gap-3">
-        <Badge variant="outline" className="text-blue-500 border-blue-500/30 font-mono">{game.startWord}</Badge>
-        <span className="text-muted-foreground">→ → →</span>
-        <Badge variant="outline" className="text-green-500 border-green-500/30 font-mono">{game.endWord}</Badge>
+      <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/30 px-4 py-2">
+        <Badge variant="outline" className="text-primary border-primary/40 bg-primary/5 font-mono">{game.startWord}</Badge>
+        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden="true" />
+        <Badge variant="outline" className="text-accent-foreground border-accent-foreground/20 bg-accent/50 font-mono">{game.endWord}</Badge>
       </div>
 
       {/* Chain */}
@@ -130,13 +131,20 @@ export default function App() {
         <Button onClick={startNewGame} variant="outline">New Round</Button>
       )}
 
-      {/* Status */}
-      <p className={`text-sm font-mono ${status.type === "error" ? "text-red-500" :
-          status.type === "success" ? "text-green-500" :
+      {/* Status — aria-live so screen readers announce changes without focus move */}
+      <div role="status" aria-live="polite" aria-atomic="true" className="min-h-[1.25rem]">
+        {status.msg && (
+          <p className={`flex items-center gap-1.5 text-sm font-mono ${
+            status.type === "error" ? "text-destructive" :
+            status.type === "success" ? "text-primary" :
             "text-muted-foreground"
-        }`}>
-        {status.msg}
-      </p>
+          }`}>
+            {status.type === "error" && <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-label="Error:" />}
+            {status.type === "success" && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-label="Success:" />}
+            {status.msg}
+          </p>
+        )}
+      </div>
 
       <p className="text-xs text-muted-foreground font-mono mt-auto">
         Each link needs ≥35% cosine similarity. Fewer steps = better. All inference runs locally via WASM.
