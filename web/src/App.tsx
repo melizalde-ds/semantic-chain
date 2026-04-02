@@ -1,7 +1,154 @@
-function App() {
+import { useState, useCallback, useEffect } from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { LoadingScreen } from "@/components/loading-screen"
+import { ChainDisplay } from "@/components/chain-display"
+import { ProximityBar } from "@/components/proximity-bar"
+import { WordInput } from "@/components/word-input"
+import { useEmbedder } from "@/hooks/use-embedder"
+import { AlertCircle, CheckCircle2, ChevronRight } from "lucide-react"
+import {
+  cosineSim, pickPair, newGameState,
+  SIMILARITY_THRESHOLD,
+  type GameState,
+} from "@/lib/game"
+
+export default function App() {
+  const { embed, isReady, loadProgress } = useEmbedder()
+  const [game, setGame] = useState<GameState | null>(null)
+  const [status, setStatus] = useState<{ msg: string; type: "info" | "success" | "error" }>({ msg: "", type: "info" })
+  const [targetSim, setTargetSim] = useState(0)
+  const [computing, setComputing] = useState(false)
+
+  const startNewGame = useCallback(async () => {
+    const [start, end] = pickPair()
+    const state = newGameState(start, end)
+
+    const [startEmb, endEmb] = await Promise.all([embed(start), embed(end)])
+    state.lastEmbedding = startEmb
+    state.targetEmbedding = endEmb
+
+    const initSim = cosineSim(startEmb, endEmb)
+    setTargetSim(initSim)
+    setGame(state)
+    setStatus({ msg: `Connect "${start}" to "${end}"`, type: "info" })
+  }, [embed])
+
+  useEffect(() => {
+    if (isReady) startNewGame()
+  }, [isReady, startNewGame])
+
+  const handleSubmit = async (word: string) => {
+    if (!game || game.gameOver || !game.lastEmbedding || !game.targetEmbedding) return
+
+    if (word === game.startWord || word === game.endWord || game.chain.some((l) => l.word === word)) {
+      setStatus({ msg: "Word already used!", type: "error" })
+      return
+    }
+
+    setComputing(true)
+    try {
+      const emb = await embed(word)
+      const simPrev = cosineSim(game.lastEmbedding, emb)
+      const simTarget = cosineSim(emb, game.targetEmbedding)
+
+      if (simPrev < SIMILARITY_THRESHOLD) {
+        setStatus({
+          msg: `"${word}" is too far from the previous word (${Math.round(simPrev * 100)}% < ${Math.round(SIMILARITY_THRESHOLD * 100)}%)`,
+          type: "error",
+        })
+        return
+      }
+
+      const link = { word, similarity: simPrev, targetSim: simTarget }
+      const won = simTarget >= SIMILARITY_THRESHOLD || word === game.endWord
+
+      setGame((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          chain: [...prev.chain, link],
+          lastEmbedding: emb,
+          gameOver: won,
+        }
+      })
+      setTargetSim(simTarget)
+
+      if (won) {
+        setStatus({ msg: `Reached "${game.endWord}" in ${game.chain.length + 1} steps!`, type: "success" })
+      } else {
+        setStatus({ msg: `Linked! Now get to "${game.endWord}"`, type: "success" })
+      }
+    } catch (err) {
+      setStatus({ msg: (err as Error).message, type: "error" })
+    } finally {
+      setComputing(false)
+    }
+  }
+
+  if (!isReady) return <LoadingScreen progress={loadProgress} />
+
+  if (!game) return null
+
   return (
-    <div>Hello World!<div>Hello</div></div>
+    <div className="min-h-svh bg-gradient-to-b from-background to-muted/30 text-foreground flex flex-col items-center p-6 gap-4 max-w-2xl mx-auto">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold tracking-tight">Semantic Chain</h1>
+        <p className="text-sm text-muted-foreground">connect words through meaning</p>
+      </div>
+
+      {/* Challenge */}
+      <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/30 px-4 py-2">
+        <Badge variant="outline" className="text-primary border-primary/40 bg-primary/5 font-mono">{game.startWord}</Badge>
+        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" aria-hidden="true" />
+        <Badge variant="outline" className="text-accent-foreground border-accent-foreground/20 bg-accent/50 font-mono">{game.endWord}</Badge>
+      </div>
+
+      {/* Chain */}
+      <Card className="w-full">
+        <CardContent className="pt-4">
+          <ChainDisplay
+            startWord={game.startWord}
+            endWord={game.endWord}
+            chain={game.chain}
+            gameOver={game.gameOver}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Proximity */}
+      <div className="w-full">
+        <ProximityBar similarity={targetSim} targetWord={game.endWord} />
+      </div>
+
+      {/* Input */}
+      {!game.gameOver ? (
+        <div className="w-full">
+          <WordInput onSubmit={handleSubmit} disabled={game.gameOver} loading={computing} />
+        </div>
+      ) : (
+        <Button onClick={startNewGame} variant="outline">New Round</Button>
+      )}
+
+      {/* Status — aria-live so screen readers announce changes without focus move */}
+      <div role="status" aria-live="polite" aria-atomic="true" className="min-h-[1.25rem]">
+        {status.msg && (
+          <p className={`flex items-center gap-1.5 text-sm font-mono ${
+            status.type === "error" ? "text-destructive" :
+            status.type === "success" ? "text-primary" :
+            "text-muted-foreground"
+          }`}>
+            {status.type === "error" && <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-label="Error:" />}
+            {status.type === "success" && <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-label="Success:" />}
+            {status.msg}
+          </p>
+        )}
+      </div>
+
+      <p className="text-xs text-muted-foreground font-mono mt-auto">
+        Each link needs ≥35% cosine similarity. Fewer steps = better. All inference runs locally via WASM.
+      </p>
+    </div>
   )
 }
-
-export default App
